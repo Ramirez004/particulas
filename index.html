@@ -34,7 +34,7 @@ video{
 
 <body>
 
-<div id="nombre">SOFIA ❤️</div>
+<div id="nombre">Hola Hermosa</div>
 <video id="video" autoplay playsinline></video>
 
 <!-- THREE -->
@@ -149,8 +149,8 @@ function animate(){
     requestAnimationFrame(animate);
 
     // SUAVIZADO (interpolación)
-    particles.rotation.x += (targetRotX - particles.rotation.x) * 2.5;
-    particles.rotation.y += (targetRotY - particles.rotation.y) * 2.5;
+    particles.rotation.x += (targetRotX - particles.rotation.x) * 0.9;
+    particles.rotation.y += (targetRotY - particles.rotation.y) * 0.9;
 
     renderer.render(scene,camera);
 }
