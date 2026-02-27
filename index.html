@@ -1,41 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Hand 3D Love System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: black;
+}
+video {
+    display: none;
+}
+</style>
+</head>
+
+<body>
+
+<video id="video" autoplay playsinline></video>
+
+<!-- THREE -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/FontLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/geometries/TextGeometry.js"></script>
+
+<!-- MEDIAPIPE -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
 <script>
 
-// =========================
-// THREE SETUP
-// =========================
+// ================= SCENE =================
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.z = 6;
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(innerWidth, innerHeight);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// =========================
-// PARTICLES
-// =========================
+// ================= PARTICLES =================
 let particles, geometry, material;
-let particleCount = 2000;
+const particleCount = 2000;
 
-function createParticles(type="heart") {
-
-    if(particles) scene.remove(particles);
+function createHeartParticles() {
 
     geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
 
     for(let i=0;i<particleCount;i++){
-        let x,y,z;
-
         const t = Math.random()*Math.PI*2;
-        x = 16 * Math.pow(Math.sin(t),3);
-        y = 13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t);
-        z = (Math.random()-0.5)*2;
+        let x = 16 * Math.pow(Math.sin(t),3);
+        let y = 13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t);
+        let z = (Math.random()-0.5)*2;
         x/=16; y/=16;
 
-        positions[i*3]=x;
-        positions[i*3+1]=y;
-        positions[i*3+2]=z;
+        positions[i*3] = x;
+        positions[i*3+1] = y;
+        positions[i*3+2] = z;
     }
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions,3));
@@ -45,35 +69,32 @@ function createParticles(type="heart") {
         size: 0.05
     });
 
-    particles = new THREE.Points(geometry,material);
+    particles = new THREE.Points(geometry, material);
     scene.add(particles);
 }
 
-createParticles();
+createHeartParticles();
 
-// =========================
-// TEXTO 3D
-// =========================
+// ================= TEXTO 3D =================
 const loader = new THREE.FontLoader();
 loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font){
 
-    const textGeo = new THREE.TextGeometry("TE AMO SOFI", {
+    const textGeometry = new THREE.TextGeometry("TE AMO SOFI", {
         font: font,
-        size: 0.4,
+        size: 0.5,
         height: 0.05
     });
 
-    const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const textMesh = new THREE.Mesh(textGeo, textMat);
+    textGeometry.center();
 
-    textGeo.center();
-    textMesh.position.y = 2;
+    const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+    textMesh.position.y = 2.5;
     scene.add(textMesh);
 });
 
-// =========================
-// MEDIAPIPE
-// =========================
+// ================= MEDIAPIPE =================
 const videoElement = document.getElementById('video');
 
 const hands = new Hands({
@@ -82,58 +103,64 @@ const hands = new Hands({
 
 hands.setOptions({
     maxNumHands: 2,
-    modelComplexity: 1,
-    minDetectionConfidence: 0.7,
-    minTrackingConfidence: 0.7
+    modelComplexity: 0,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6
 });
 
 hands.onResults(results => {
 
-    if(results.multiHandLandmarks.length === 2){
+    if(results.multiHandLandmarks.length > 0){
 
-        const hand1 = results.multiHandLandmarks[0];
-        const hand2 = results.multiHandLandmarks[1];
+        // 1 MANO → ROTACIÓN
+        if(results.multiHandLandmarks.length === 1){
+            const wrist = results.multiHandLandmarks[0][0];
 
-        const wrist1 = hand1[0];
-        const wrist2 = hand2[0];
+            particles.rotation.y = (wrist.x - 0.5) * 6;
+            particles.rotation.x = (wrist.y - 0.5) * 6;
+        }
 
-        // ROTACIÓN
-        particles.rotation.y = (wrist1.x - 0.5) * 5;
-        particles.rotation.x = (wrist2.y - 0.5) * 5;
+        // 2 MANOS → ESCALA + COLOR
+        if(results.multiHandLandmarks.length === 2){
+            const w1 = results.multiHandLandmarks[0][0];
+            const w2 = results.multiHandLandmarks[1][0];
 
-        // ESCALA según distancia entre manos
-        const dx = wrist1.x - wrist2.x;
-        const dy = wrist1.y - wrist2.y;
-        const distance = Math.sqrt(dx*dx + dy*dy);
+            const dx = w1.x - w2.x;
+            const dy = w1.y - w2.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
 
-        const scale = 1 + distance * 3;
-        particles.scale.set(scale,scale,scale);
+            const scale = 1 + distance * 4;
+            particles.scale.set(scale, scale, scale);
 
-        // COLOR dinámico
-        material.color.setHSL(distance*2,1,0.5);
+            material.color.setHSL(distance*2,1,0.5);
+        }
     }
 });
 
-const cameraUtils = new Camera(videoElement,{
-    onFrame: async () => { await hands.send({image: videoElement}); },
+const cameraUtils = new Camera(videoElement, {
+    onFrame: async () => {
+        await hands.send({image: videoElement});
+    },
     width: 640,
     height: 480
 });
+
 cameraUtils.start();
 
-// =========================
-// ANIMATE
-// =========================
+// ================= ANIMATION =================
 function animate(){
     requestAnimationFrame(animate);
-    renderer.render(scene,camera);
+    renderer.render(scene, camera);
 }
 animate();
 
-window.addEventListener('resize',()=>{
-    camera.aspect = innerWidth/innerHeight;
+window.addEventListener('resize', ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth,innerHeight);
+    renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
 </script>
+
+</body>
+</html>
