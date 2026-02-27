@@ -94,30 +94,42 @@ hands.setOptions({
     minTrackingConfidence: 0.7
 });
 
+let lastX = 0;
+let lastY = 0;
+
 hands.onResults(results => {
     if(results.multiHandLandmarks.length > 0){
+
         const landmarks = results.multiHandLandmarks[0];
 
+        const wrist = landmarks[0]; // muñeca
         const thumb = landmarks[4];
         const index = landmarks[8];
 
+        // ROTACIÓN CON MOVIMIENTO
+        let deltaX = wrist.x - lastX;
+        let deltaY = wrist.y - lastY;
+
+        if(particles){
+            particles.rotation.y += deltaX * 5;
+            particles.rotation.x += deltaY * 5;
+        }
+
+        lastX = wrist.x;
+        lastY = wrist.y;
+
+        // DISTANCIA PARA ESCALA Y COLOR
         const dx = thumb.x - index.x;
         const dy = thumb.y - index.y;
         const distance = Math.sqrt(dx*dx + dy*dy);
 
-        // Control particle expansion
         particles.scale.set(1 + distance*5,1 + distance*5,1 + distance*5);
-
-        // Change color
         material.color.setHSL(distance*2,1,0.5);
 
-        // Change shape if hand very open
         if(distance > 0.25){
-            shapeType = "saturn";
             createParticles("saturn");
         }
         if(distance < 0.1){
-            shapeType = "heart";
             createParticles("heart");
         }
     }
