@@ -87,7 +87,7 @@ hands.onResults(results => {
         // Mapeamos y (0 a 1) a rotación X
         const palm = landmarks[0]; // La muñeca/base es mejor para la rotación
         targetRotY = (palm.x - 0.5) * 5; 
-        targetRotX = (palm.y - 0.5) * 2;
+        targetRotX = (palm.y - 0.5) * 5;
     }
 });
 
