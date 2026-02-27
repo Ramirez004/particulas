@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>3D Heart for Sofi - Interactive</title>
+    <title>3D Heart for Sofi - Gesture Control</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
         video { display: none; }
@@ -38,7 +38,7 @@ let targetScale = 1;
 let currentScale = 1;
 let targetRotX = 0;
 let targetRotY = 0;
-const lerpFactor = 0.08; // Suavizado (más bajo = más lento/fluido)
+const lerpFactor = 0.07; // Control de fluidez (suavizado)
 
 function createHeart() {
     const geometry = new THREE.BufferGeometry();
@@ -49,7 +49,7 @@ function createHeart() {
         const t = Math.random() * Math.PI * 2;
         let x = 16 * Math.pow(Math.sin(t), 3);
         let y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-        let z = (Math.random() - 0.5) * 6; 
+        let z = (Math.random() - 0.5) * 5; 
 
         positions[i * 3] = (x / 16);
         positions[i * 3 + 1] = (y / 16);
@@ -57,37 +57,45 @@ function createHeart() {
     }
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const material = new THREE.PointsMaterial({
-        color: 0xff1493, size: 0.035, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.7
+        color: 0xff1493, size: 0.035, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.8
     });
     particles = new THREE.Points(geometry, material);
     scene.add(particles);
 }
 createHeart();
 
-// --- TRACKING Y LÓGICA ---
+// --- LÓGICA DE GESTOS ---
 const videoElement = document.getElementById('video');
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
 
 hands.setOptions({
-    maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6
+    maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7
 });
 
 hands.onResults(results => {
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const landmarks = results.multiHandLandmarks[0];
         
-        // 1. Escala (Distancia entre dedos)
+        // 1. Escala (Distancia Pulgar-Índice)
         const thumb = landmarks[4];
-        const index = landmarks[8];
-        const dist = Math.sqrt(Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2));
-        targetScale = 0.7 + (dist * 7);
+        const indexTip = landmarks[8];
+        const dist = Math.sqrt(Math.pow(thumb.x - indexTip.x, 2) + Math.pow(thumb.y - indexTip.y, 2));
+        targetScale = 0.8 + (dist * 6);
 
-        // 2. Rotación (Posición de la mano en pantalla)
-        // Mapeamos x (0 a 1) a rotación Y (-1 a 1 radianes aprox)
-        // Mapeamos y (0 a 1) a rotación X
-        const palm = landmarks[0]; // La muñeca/base es mejor para la rotación
-        targetRotY = (palm.x - 0.5) * 5; 
-        targetRotX = (palm.y - 0.5) * 5;
+        // 2. Detección de "Dedo Índice Levantado" (Gesto de apuntar)
+        // Verificamos que el índice esté más arriba que sus nudillos y los otros dedos cerrados
+        const isIndexUp = indexTip.y < landmarks[6].y;
+        const isMiddleDown = landmarks[12].y > landmarks[10].y;
+        const isRingDown = landmarks[16].y > landmarks[14].y;
+        const isPinkyDown = landmarks[20].y > landmarks[18].y;
+
+        if (isIndexUp && isMiddleDown && isRingDown && isPinkyDown) {
+            // Solo actualizamos la rotación si el gesto es correcto
+            const palm = landmarks[0];
+            // SENSIBILIDAD: Aquí puedes subir los números (5 y 4) para rotar más rápido
+            targetRotY = (palm.x - 0.5) * 5; 
+            targetRotX = (palm.y - 0.5) * 4;
+        }
     }
 });
 
@@ -101,17 +109,17 @@ cameraUtils.start();
 function animate() {
     requestAnimationFrame(animate);
     if (particles) {
-        // Aplicar suavizado (Lerp) a Escala
+        // Suavizado de escala
         currentScale += (targetScale - currentScale) * lerpFactor;
         particles.scale.set(currentScale, currentScale, currentScale);
 
-        // Aplicar suavizado (Lerp) a Rotación
-        // Sumamos una rotación constante + la posición de la mano
-        particles.rotation.y += (targetRotY - (particles.rotation.y - (Date.now()*0.001))) * lerpFactor;
+        // Suavizado de rotación (Interpolación lineal hacia el objetivo)
+        particles.rotation.y += (targetRotY - particles.rotation.y) * lerpFactor;
         particles.rotation.x += (targetRotX - particles.rotation.x) * lerpFactor;
         
-        // Giro automático suave de fondo
-        particles.rotation.y += 0.005;
+        // Latido muy sutil para que no parezca una foto estática al inicio
+        const pulse = Math.sin(Date.now() * 0.002) * 0.002;
+        particles.scale.addScalar(pulse);
     }
     renderer.render(scene, camera);
 }
