@@ -2,29 +2,43 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Hand 3D Love System</title>
+<title>SOFIA ❤️</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-body {
-    margin: 0;
-    overflow: hidden;
-    background: black;
+body{
+    margin:0;
+    overflow:hidden;
+    background:black;
 }
-video {
-    display: none;
+
+/* TEXTO FIJO EN PANTALLA */
+#nombre{
+    position:absolute;
+    top:40px;
+    width:100%;
+    text-align:center;
+    font-size:40px;
+    font-weight:bold;
+    color:white;
+    font-family:Arial, sans-serif;
+    z-index:10;
+    text-shadow:0 0 20px hotpink;
+}
+
+video{
+    display:none;
 }
 </style>
 </head>
 
 <body>
 
+<div id="nombre">SOFIA ❤️</div>
 <video id="video" autoplay playsinline></video>
 
 <!-- THREE -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/FontLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/geometries/TextGeometry.js"></script>
 
 <!-- MEDIAPIPE -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -37,15 +51,15 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.z = 6;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // ================= PARTICLES =================
 let particles, geometry, material;
-const particleCount = 2000;
+const particleCount = 1500;
 
-function createHeartParticles() {
+function createHeart(){
 
     geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
@@ -57,92 +71,75 @@ function createHeartParticles() {
         let z = (Math.random()-0.5)*2;
         x/=16; y/=16;
 
-        positions[i*3] = x;
-        positions[i*3+1] = y;
-        positions[i*3+2] = z;
+        positions[i*3]=x;
+        positions[i*3+1]=y;
+        positions[i*3+2]=z;
     }
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions,3));
 
     material = new THREE.PointsMaterial({
-        color: 0xff69b4,
-        size: 0.05
+        color:0xff69b4,
+        size:0.05
     });
 
     particles = new THREE.Points(geometry, material);
     scene.add(particles);
 }
 
-createHeartParticles();
-
-// ================= TEXTO 3D =================
-const loader = new THREE.FontLoader();
-loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font){
-
-    const textGeometry = new THREE.TextGeometry("TE AMO SOFI", {
-        font: font,
-        size: 0.5,
-        height: 0.05
-    });
-
-    textGeometry.center();
-
-    const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-
-    textMesh.position.y = 2.5;
-    scene.add(textMesh);
-});
+createHeart();
 
 // ================= MEDIAPIPE =================
-const videoElement = document.getElementById('video');
+const videoElement = document.getElementById("video");
 
 const hands = new Hands({
     locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
 });
 
 hands.setOptions({
-    maxNumHands: 2,
-    modelComplexity: 0,
-    minDetectionConfidence: 0.6,
-    minTrackingConfidence: 0.6
+    maxNumHands:2,
+    modelComplexity:0,
+    minDetectionConfidence:0.6,
+    minTrackingConfidence:0.6
 });
+
+// SUAVIZADO
+let targetRotX = 0;
+let targetRotY = 0;
 
 hands.onResults(results => {
 
     if(results.multiHandLandmarks.length > 0){
 
-        // 1 MANO → ROTACIÓN
-        if(results.multiHandLandmarks.length === 1){
-            const wrist = results.multiHandLandmarks[0][0];
+        const wrist = results.multiHandLandmarks[0][0];
 
-            particles.rotation.y = (wrist.x - 0.5) * 6;
-            particles.rotation.x = (wrist.y - 0.5) * 6;
-        }
+        // BAJA SENSIBILIDAD (ANTES era *6)
+        targetRotY = (wrist.x - 0.5) * 2;
+        targetRotX = (wrist.y - 0.5) * 2;
+    }
 
-        // 2 MANOS → ESCALA + COLOR
-        if(results.multiHandLandmarks.length === 2){
-            const w1 = results.multiHandLandmarks[0][0];
-            const w2 = results.multiHandLandmarks[1][0];
+    if(results.multiHandLandmarks.length === 2){
 
-            const dx = w1.x - w2.x;
-            const dy = w1.y - w2.y;
-            const distance = Math.sqrt(dx*dx + dy*dy);
+        const w1 = results.multiHandLandmarks[0][0];
+        const w2 = results.multiHandLandmarks[1][0];
 
-            const scale = 1 + distance * 4;
-            particles.scale.set(scale, scale, scale);
+        const dx = w1.x - w2.x;
+        const dy = w1.y - w2.y;
+        const distance = Math.sqrt(dx*dx + dy*dy);
 
-            material.color.setHSL(distance*2,1,0.5);
-        }
+        const scale = 1 + distance * 2; // menos exagerado
+        particles.scale.set(scale,scale,scale);
+
+        material.color.setHSL(distance*2,1,0.5);
     }
 });
 
-const cameraUtils = new Camera(videoElement, {
+const cameraUtils = new Camera(videoElement,{
     onFrame: async () => {
         await hands.send({image: videoElement});
     },
-    width: 640,
-    height: 480
+    width:640,
+    height:480
 });
 
 cameraUtils.start();
@@ -150,11 +147,16 @@ cameraUtils.start();
 // ================= ANIMATION =================
 function animate(){
     requestAnimationFrame(animate);
-    renderer.render(scene, camera);
+
+    // SUAVIZADO (interpolación)
+    particles.rotation.x += (targetRotX - particles.rotation.x) * 0.1;
+    particles.rotation.y += (targetRotY - particles.rotation.y) * 0.1;
+
+    renderer.render(scene,camera);
 }
 animate();
 
-window.addEventListener('resize', ()=>{
+window.addEventListener("resize",()=>{
     camera.aspect = window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
