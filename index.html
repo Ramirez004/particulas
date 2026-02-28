@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Universo Interactivo</title>
+    <meta charset="UTF-8" />
+    <title>Universo Interactivo - Corregido</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
         #video-container { position: fixed; bottom: 10px; left: 10px; width: 130px; border: 2px solid #ff0077; border-radius: 10px; overflow: hidden; z-index: 100; transform: scaleX(-1); }
         #video-container video { width: 100%; display: block; }
-        .hud { position: fixed; top: 20px; left: 20px; color: white; pointer-events: none; z-index: 10; background: rgba(255, 0, 119, 0.2); padding: 15px; border-radius: 10px; border: 1px solid #ff0077; }
+        .hud { position: fixed; top: 20px; left: 20px; color: white; pointer-events: none; z-index: 10; background: rgba(255, 0, 119, 0.18); padding: 15px; border-radius: 10px; border: 1px solid #ff0077; }
         h3 { margin: 0 0 10px 0; font-size: 16px; text-transform: uppercase; letter-spacing: 2px; }
         p { margin: 5px 0; font-size: 14px; opacity: 0.9; }
     </style>
@@ -16,179 +16,299 @@
 
 <div class="hud">
     <h3>Comandos</h3>
-    <p>• 2 Dedos</p>
-    <p>• 3 Dedos</p>
-    <p>• Mano Abierta</p>
-    <p>• Pellizco</p>
+    <p>• 2 Dedos — TE AMO SOFIA</p>
+    <p>• 3 Dedos — SATURNO</p>
+    <p>• Mano Abierta — Partículas por toda la pantalla y siguen tu mano</p>
+    <p>• Puño Cerrado — Corazón</p>
 </div>
 
-<div id="video-container"><video id="input_video"></video></div>
+<div id="video-container"><video id="input_video" autoplay muted playsinline></video></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-let scene, camera, renderer, particles;
-const COUNT = 12000; 
-let positions, targets;
-let targetSize = 0.04;
+/* --------- Config --------- */
+const COUNT = 12000; // si tu PC va lento, baja este número (ej: 4000)
+const sceneRange = 20; // escala de la escena
+
+/* --------- THREE setup --------- */
+let scene, camera, renderer, particles, particleGroup;
+let positions, targets, baseTargets;
+let particleMaterial;
+let currentMode = 'text'; // 'text'|'saturn'|'open'|'heart'|'pinch'
+let handOffsetX = 0, handOffsetY = 0;
+let saturnAngle = 0;
 
 function init() {
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
+    // Grupo que mantiene todo centrado; así siempre está en el centro de la pantalla
+    particleGroup = new THREE.Group();
+    scene.add(particleGroup);
 
     const geo = new THREE.BufferGeometry();
     positions = new Float32Array(COUNT * 3);
     targets = new Float32Array(COUNT * 3);
+    baseTargets = new Float32Array(COUNT * 3);
 
-    for(let i=0; i<COUNT*3; i++) {
-        positions[i] = (Math.random() - 0.5) * 40;
+    // posiciones iniciales aleatorias
+    for (let i = 0; i < COUNT * 3; i++) {
+        positions[i] = (Math.random() - 0.5) * sceneRange;
         targets[i] = positions[i];
+        baseTargets[i] = positions[i];
     }
 
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({ 
-        size: 0.04, 
-        color: 0xff0077, 
-        transparent: true, 
-        opacity: 0.8, 
-        blending: THREE.AdditiveBlending 
+    particleMaterial = new THREE.PointsMaterial({
+        size: 0.04,
+        color: 0xff0077,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
     });
-    particles = new THREE.Points(geo, mat);
-    scene.add(particles);
-    camera.position.z = 15;
+
+    particles = new THREE.Points(geo, particleMaterial);
+    particleGroup.add(particles);
+
+    camera.position.z = 25;
 }
 
-// --- FORMAS ---
+/* --------- Formas (llenan baseTargets) --------- */
 
-function createHeart(hX, hY) {
-    targetSize = 0.18; // PARTÍCULAS GRANDES
+function createHeart(centerX = 0, centerY = 0) {
+    // forma de corazón basada en la curva paramétrica
     for (let i = 0; i < COUNT; i++) {
         const i3 = i * 3;
         const t = Math.random() * Math.PI * 2;
-        const r = Math.pow(Math.random(), 0.5); 
+        const r = Math.pow(Math.random(), 0.6);
         const x = 16 * Math.pow(Math.sin(t), 3) * r;
         const y = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * r;
-        targets[i3] = (x / 3) + hX;
-        targets[i3+1] = (y / 3) + hY;
-        targets[i3+2] = (Math.random() - 0.5) * 2;
+        baseTargets[i3]   = (x / 3) + centerX;
+        baseTargets[i3+1] = (y / 3) + centerY;
+        baseTargets[i3+2] = (Math.random() - 0.5) * 2;
     }
+    particleMaterial.size = 0.18;
+    particleMaterial.color.setHex(0xff0000);
+    currentMode = 'heart';
 }
 
 function createSaturn() {
-    targetSize = 0.05;
-    for(let i=0; i<COUNT; i++) {
+    // llenamos baseTargets con planeta + anillo; los rotaremos dinámicamente en animate
+    for (let i = 0; i < COUNT; i++) {
         const i3 = i * 3;
-        if (i < COUNT * 0.5) { // Planeta
-            const u = Math.random(), v = Math.random();
-            const theta = 2 * Math.PI * u, phi = Math.acos(2 * v - 1);
-            targets[i3] = 4 * Math.sin(phi) * Math.cos(theta);
-            targets[i3+1] = 4 * Math.sin(phi) * Math.sin(theta);
-            targets[i3+2] = 4 * Math.cos(phi);
-        } else { // Anillo
-            const r = 6 + Math.random() * 3;
+        if (i < COUNT * 0.45) { // núcleo - esfera
+            // puntos en esfera
+            const u = Math.random();
+            const v = Math.random();
+            const theta = 2 * Math.PI * u;
+            const phi = Math.acos(2 * v - 1);
+            const r = 4 * Math.pow(Math.random(), 1/3); // densidad en el centro
+            baseTargets[i3]   = r * Math.sin(phi) * Math.cos(theta);
+            baseTargets[i3+1] = r * Math.sin(phi) * Math.sin(theta);
+            baseTargets[i3+2] = r * Math.cos(phi);
+        } else { // anillo
+            const radius = 6 + Math.random() * 2.5;
             const a = Math.random() * Math.PI * 2;
-            targets[i3] = r * Math.cos(a);
-            targets[i3+1] = r * Math.sin(a) * 0.4; 
-            targets[i3+2] = r * Math.sin(a) * 0.8;
+            // aplanamiento del anillo y algo de variación vertical
+            baseTargets[i3]   = radius * Math.cos(a);
+            baseTargets[i3+1] = (Math.random() - 0.5) * 0.6;
+            baseTargets[i3+2] = radius * Math.sin(a) * 0.5;
         }
     }
+    particleMaterial.size = 0.05;
+    particleMaterial.color.setHex(0xffaa00);
+    currentMode = 'saturn';
+    saturnAngle = 0;
 }
 
 function createText() {
-    targetSize = 0.04;
+    // "TE AMO SOFIA" usando canvas -> tomar puntos y asignarlos a baseTargets
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = 800; canvas.height = 200;
+    canvas.width = 900; canvas.height = 200;
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 75px Arial';
+    ctx.font = 'bold 80px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('TE AMO SOFIA', 400, 100);
-    
-    const data = ctx.getImageData(0,0,800,200).data;
+    ctx.fillText('TE AMO SOFIA', canvas.width/2, canvas.height/1.6);
+
+    const data = ctx.getImageData(0,0,canvas.width,canvas.height).data;
     const points = [];
-    for(let y=0; y<200; y+=3) {
-        for(let x=0; x<800; x+=3) {
-            if(data[(y*800 + x)*4 + 3] > 128) points.push({x: (x-400)/18, y: -(y-100)/18});
+    for (let y = 0; y < canvas.height; y += 4) {
+        for (let x = 0; x < canvas.width; x += 4) {
+            if (data[(y*canvas.width + x)*4 + 3] > 128) {
+                points.push({ x: (x - canvas.width/2) / 22, y: -(y - canvas.height/2) / 22 });
+            }
         }
     }
-    for(let i=0; i<COUNT; i++) {
-        const i3 = i * 3;
+    if (points.length === 0) return;
+    for (let i = 0; i < COUNT; i++) {
         const p = points[i % points.length];
-        targets[i3] = p.x;
-        targets[i3+1] = p.y;
-        targets[i3+2] = (Math.random() - 0.5);
+        const i3 = i * 3;
+        baseTargets[i3]   = p.x + (Math.random() - 0.5) * 0.4;
+        baseTargets[i3+1] = p.y + (Math.random() - 0.5) * 0.4;
+        baseTargets[i3+2] = (Math.random() - 0.5) * 1.0;
     }
+    particleMaterial.size = 0.06;
+    particleMaterial.color.setHex(0xff0077);
+    currentMode = 'text';
 }
 
-function createPinch(hX, hY) {
-    targetSize = 0.02;
-    for(let i=0; i<COUNT; i++) {
+function createPinch(hX = 0, hY = 0) {
+    // efecto compacto alrededor de la posición del pellizco
+    for (let i = 0; i < COUNT; i++) {
         const i3 = i * 3;
-        const r = Math.random() * 3;
+        const r = Math.random() * 2.0;
         const a = Math.random() * Math.PI * 2;
-        targets[i3] = hX + Math.cos(a) * r;
-        targets[i3+1] = hY + Math.sin(a) * r;
-        targets[i3+2] = (Math.random() - 0.5) * 10;
+        baseTargets[i3]   = hX + Math.cos(a) * r * 0.6;
+        baseTargets[i3+1] = hY + Math.sin(a) * r * 0.6;
+        baseTargets[i3+2] = (Math.random() - 0.5) * 4;
     }
+    particleMaterial.size = 0.02;
+    particleMaterial.color.setHex(0x00ffff);
+    currentMode = 'pinch';
 }
+
+function createOpenField() {
+    // partículas repartidas por toda la escena; no centradas en texto ni forma
+    for (let i = 0; i < COUNT; i++) {
+        const i3 = i * 3;
+        baseTargets[i3]   = (Math.random() - 0.5) * sceneRange * 1.5;
+        baseTargets[i3+1] = (Math.random() - 0.5) * (sceneRange * 0.6);
+        baseTargets[i3+2] = (Math.random() - 0.5) * sceneRange;
+    }
+    particleMaterial.size = 0.04;
+    particleMaterial.color.setHex(0x88ccff);
+    currentMode = 'open';
+}
+
+/* --------- Mediapipe / detección --------- */
 
 function onResults(results) {
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) return;
 
     const hand = results.multiHandLandmarks[0];
-    const hX = -(hand[9].x - 0.5) * 35; 
-    const hY = -(hand[9].y - 0.5) * 25;
 
-    // Lógica de detección simplificada para que sea más sensible
-    const isIndexUp = hand[8].y < hand[6].y;
+    // Centro aproximado de la palma (landmark 9) -> lo usamos para desplazar partículas cuando haga falta
+    const hX = -(hand[9].x - 0.5) * 28; 
+    const hY = -(hand[9].y - 0.5) * 20;
+    handOffsetX = hX;
+    handOffsetY = hY;
+
+    // Detección de dedos arriba usando landmarks relativos (más simple y robusto)
+    const isIndexUp  = hand[8].y < hand[6].y;
     const isMiddleUp = hand[12].y < hand[10].y;
-    const isRingUp = hand[16].y < hand[14].y;
-    const isPinkyUp = hand[20].y < hand[18].y;
+    const isRingUp   = hand[16].y < hand[14].y;
+    const isPinkyUp  = hand[20].y < hand[18].y;
 
+    const fingerCount = [isIndexUp,isMiddleUp,isRingUp,isPinkyUp].filter(Boolean).length;
+
+    // Distancia para detectar pellizco entre pulgar(4) y índice(8)
     const distPinch = Math.hypot(hand[4].x - hand[8].x, hand[4].y - hand[8].y);
 
-    if (distPinch < 0.05) {
+    // Prioridades: pellizco > puño cerrado (0 dedos arriba) > mano abierta (4 dedos arriba) > 3 dedos > 2 dedos
+    if (distPinch < 0.055) {
+        // pellizco
         createPinch(hX, hY);
-        particles.material.color.setHex(0x00ffff);
-    } else if (isIndexUp && isMiddleUp && isRingUp && isPinkyUp) {
+        // además actualizamos baseTargets de manera continua para que siga la mano
+        // (createPinch ya colocó alrededor de hX,hY)
+    } else if (fingerCount === 0) {
+        // Puño cerrado -> corazón centrado en la palma
         createHeart(hX, hY);
-        particles.material.color.setHex(0xff0000);
-    } else if (isIndexUp && isMiddleUp && isRingUp) {
-        createSaturn();
-        particles.material.color.setHex(0xffaa00);
-    } else if (isIndexUp && isMiddleUp) {
-        createText();
-        particles.material.color.setHex(0xff0077);
+    } else if (fingerCount === 4) {
+        // Mano abierta -> campo amplio y que siga la mano
+        // Si ya estamos en open no necesitamos recrear siempre; pero lo recreamos la primera vez
+        if (currentMode !== 'open') createOpenField();
+        // baseTargets se mantiene, y en animate aplicamos el offset para que sigan la mano
+    } else if (fingerCount === 3) {
+        // tres dedos -> Saturno
+        if (currentMode !== 'saturn') createSaturn();
+        // también podríamos usar hX,hY para desplazar saturno ligeramente si quieres
+    } else if (isIndexUp && isMiddleUp && !isRingUp) {
+        // exactamente índice+medio -> texto "TE AMO SOFIA"
+        if (currentMode !== 'text') createText();
     }
 }
 
-const videoElement = document.getElementById('input_video');
-const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-hands.onResults(onResults);
-
-new Camera(videoElement, { onFrame: async () => { await hands.send({image: videoElement}); }, width: 640, height: 480 }).start();
-
-init();
+/* --------- Render loop y lógica de movimiento --------- */
 
 function animate() {
     requestAnimationFrame(animate);
+
+    // Rotación constante del grupo para que la "imagen 3D" gire sobre su propio eje
+    particleGroup.rotation.y += 0.004; // ajuste: velocidad de rotación global
+
+    // Si estamos en saturn rotamos los baseTargets en Y (no modificamos baseTargets original,
+    // sino que generamos targets rotados a partir de baseTargets)
+    if (currentMode === 'saturn') {
+        saturnAngle += 0.008;
+        const c = Math.cos(saturnAngle), s = Math.sin(saturnAngle);
+        // rotar sobre Y: x' = x*c - z*s ; z' = x*s + z*c
+        for (let i = 0; i < COUNT; i++) {
+            const i3 = i*3;
+            const bx = baseTargets[i3], by = baseTargets[i3+1], bz = baseTargets[i3+2];
+            targets[i3]   = bx * c - bz * s;
+            targets[i3+1] = by;
+            targets[i3+2] = bx * s + bz * c;
+        }
+    } else if (currentMode === 'open') {
+        // Cuando es open, las partículas siguen la mano: sumamos handOffsetX/Y a los baseTargets
+        for (let i = 0; i < COUNT; i++) {
+            const i3 = i*3;
+            targets[i3]   = baseTargets[i3]   + handOffsetX * 0.6; // factor para que el seguimiento sea agradable
+            targets[i3+1] = baseTargets[i3+1] + handOffsetY * 0.6;
+            targets[i3+2] = baseTargets[i3+2];
+        }
+    } else {
+        // modos "fijos" (text, heart, pinch): targets = baseTargets (interpolación hacia baseTargets)
+        for (let i = 0; i < COUNT; i++) {
+            const i3 = i*3;
+            targets[i3]   = baseTargets[i3];
+            targets[i3+1] = baseTargets[i3+1];
+            targets[i3+2] = baseTargets[i3+2];
+        }
+    }
+
+    // Interpolar posiciones actuales hacia targets (suavizado)
     const pos = particles.geometry.attributes.position.array;
     for (let i = 0; i < COUNT * 3; i++) {
-        pos[i] += (targets[i] - pos[i]) * 0.12; // Velocidad de respuesta
+        pos[i] += (targets[i] - pos[i]) * 0.12;
     }
-    particles.material.size += (targetSize - particles.material.size) * 0.1;
+
+    // Tamaño suave (si cambió antes en createX)
+    // particleMaterial.size ya se ajustó en las funciones; aquí lo suavizamos aplicándolo directo.
+    // (PointsMaterial.size no puede interpolarse con una propiedad de material directamente en buffer, así que lo dejamos estático)
+
     particles.geometry.attributes.position.needsUpdate = true;
-    particles.rotation.y += 0.002; 
+
     renderer.render(scene, camera);
 }
+
+/* --------- Inicialización mediapipe y cámara --------- */
+
+const videoElement = document.getElementById('input_video');
+const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+hands.onResults(onResults);
+
+new Camera(videoElement, {
+    onFrame: async () => { await hands.send({image: videoElement}); },
+    width: 640,
+    height: 480
+}).start();
+
+/* --------- Start scene --------- */
+init();
+createText(); // estado inicial
 animate();
 
+/* --------- Resize handling (mantiene el canvas centrado) --------- */
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
