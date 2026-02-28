@@ -16,10 +16,11 @@
 
 <div class="hud">
     <h3>Comandos</h3>
-    <p>• 2 Dedos — TE AMO SOFIA</p>
-    <p>• 3 Dedos — SATURNO</p>
-    <p>• Mano Abierta — Partículas por toda la pantalla y siguen tu mano</p>
-    <p>• Puño Cerrado — Corazón</p>
+    <p>• 2 Dedos</p>
+    <p>• 3 Dedos</p>
+    <p>• Mano Abierta</p>
+    <p>• Puño Cerrado</p>
+    <p>• Pellizco</p>
 </div>
 
 <div id="video-container"><video id="input_video" autoplay muted playsinline></video></div>
@@ -82,21 +83,21 @@ function init() {
 
 /* --------- Formas (llenan baseTargets) --------- */
 
-function createHeart(centerX = 0, centerY = 0) {
-    // forma de corazón basada en la curva paramétrica
+function createHeart(hX, hY) {
+    targetSize = 0.16;
+
     for (let i = 0; i < COUNT; i++) {
         const i3 = i * 3;
         const t = Math.random() * Math.PI * 2;
-        const r = Math.pow(Math.random(), 0.6);
-        const x = 16 * Math.pow(Math.sin(t), 3) * r;
-        const y = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * r;
-        baseTargets[i3]   = (x / 3) + centerX;
-        baseTargets[i3+1] = (y / 3) + centerY;
-        baseTargets[i3+2] = (Math.random() - 0.5) * 2;
+        const scale = 0.6;
+
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+
+        targets[i3] = x * scale + hX;
+        targets[i3+1] = y * scale + hY;
+        targets[i3+2] = 0; // <- sin ruido en Z (antes lo metías random)
     }
-    particleMaterial.size = 0.18;
-    particleMaterial.color.setHex(0xff0000);
-    currentMode = 'heart';
 }
 
 function createSaturn() {
@@ -160,19 +161,24 @@ function createText() {
     currentMode = 'text';
 }
 
-function createPinch(hX = 0, hY = 0) {
-    // efecto compacto alrededor de la posición del pellizco
+function createPinch(hX, hY) {
+    targetSize = 0.03;
+
     for (let i = 0; i < COUNT; i++) {
         const i3 = i * 3;
-        const r = Math.random() * 2.0;
+
+        const r = Math.random() * 2;
         const a = Math.random() * Math.PI * 2;
-        baseTargets[i3]   = hX + Math.cos(a) * r * 0.6;
-        baseTargets[i3+1] = hY + Math.sin(a) * r * 0.6;
-        baseTargets[i3+2] = (Math.random() - 0.5) * 4;
+
+        targets[i3] = hX + Math.cos(a) * r;
+        targets[i3+1] = hY + Math.sin(a) * r;
+
+        // MUCHÍSIMO más cerca de la cámara
+        targets[i3+2] = (Math.random() - 0.5) * 2 - 10;
     }
-    particleMaterial.size = 0.02;
-    particleMaterial.color.setHex(0x00ffff);
-    currentMode = 'pinch';
+
+    // acercamos cámara ligeramente
+    camera.position.z = 8;
 }
 
 function createOpenField() {
@@ -190,49 +196,64 @@ function createOpenField() {
 
 /* --------- Mediapipe / detección --------- */
 
+function isFingerExtended(tip, pip, mcp) {
+    return tip.y < pip.y && pip.y < mcp.y;
+}
+
+function isFingerFolded(tip, mcp) {
+    const dist = Math.hypot(tip.x - mcp.x, tip.y - mcp.y);
+    return dist < 0.08; // umbral estable
+}
+
 function onResults(results) {
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) return;
 
     const hand = results.multiHandLandmarks[0];
 
-    // Centro aproximado de la palma (landmark 9) -> lo usamos para desplazar partículas cuando haga falta
-    const hX = -(hand[9].x - 0.5) * 28; 
+    const hX = -(hand[9].x - 0.5) * 30;
     const hY = -(hand[9].y - 0.5) * 20;
-    handOffsetX = hX;
-    handOffsetY = hY;
 
-    // Detección de dedos arriba usando landmarks relativos (más simple y robusto)
-    const isIndexUp  = hand[8].y < hand[6].y;
-    const isMiddleUp = hand[12].y < hand[10].y;
-    const isRingUp   = hand[16].y < hand[14].y;
-    const isPinkyUp  = hand[20].y < hand[18].y;
+    const indexUp  = isFingerExtended(hand[8], hand[6], hand[5]);
+    const middleUp = isFingerExtended(hand[12], hand[10], hand[9]);
+    const ringUp   = isFingerExtended(hand[16], hand[14], hand[13]);
+    const pinkyUp  = isFingerExtended(hand[20], hand[18], hand[17]);
 
-    const fingerCount = [isIndexUp,isMiddleUp,isRingUp,isPinkyUp].filter(Boolean).length;
+    const indexFold  = isFingerFolded(hand[8], hand[5]);
+    const middleFold = isFingerFolded(hand[12], hand[9]);
+    const ringFold   = isFingerFolded(hand[16], hand[13]);
+    const pinkyFold  = isFingerFolded(hand[20], hand[17]);
 
-    // Distancia para detectar pellizco entre pulgar(4) y índice(8)
     const distPinch = Math.hypot(hand[4].x - hand[8].x, hand[4].y - hand[8].y);
 
-    // Prioridades: pellizco > puño cerrado (0 dedos arriba) > mano abierta (4 dedos arriba) > 3 dedos > 2 dedos
-    if (distPinch < 0.055) {
-        // pellizco
+    // PRIORIDAD ORDENADA
+
+    if (distPinch < 0.045) {
         createPinch(hX, hY);
-        // además actualizamos baseTargets de manera continua para que siga la mano
-        // (createPinch ya colocó alrededor de hX,hY)
-    } else if (fingerCount === 0) {
-        // Puño cerrado -> corazón centrado en la palma
+        particles.material.color.setHex(0x00ffff);
+    }
+
+    // PUÑO REAL (todos doblados)
+    else if (indexFold && middleFold && ringFold && pinkyFold) {
         createHeart(hX, hY);
-    } else if (fingerCount === 4) {
-        // Mano abierta -> campo amplio y que siga la mano
-        // Si ya estamos en open no necesitamos recrear siempre; pero lo recreamos la primera vez
-        if (currentMode !== 'open') createOpenField();
-        // baseTargets se mantiene, y en animate aplicamos el offset para que sigan la mano
-    } else if (fingerCount === 3) {
-        // tres dedos -> Saturno
-        if (currentMode !== 'saturn') createSaturn();
-        // también podríamos usar hX,hY para desplazar saturno ligeramente si quieres
-    } else if (isIndexUp && isMiddleUp && !isRingUp) {
-        // exactamente índice+medio -> texto "TE AMO SOFIA"
-        if (currentMode !== 'text') createText();
+        particles.material.color.setHex(0xff0000);
+    }
+
+    // MANO ABIERTA REAL (todos extendidos)
+    else if (indexUp && middleUp && ringUp && pinkyUp) {
+        createOpenField(hX, hY);
+        particles.material.color.setHex(0x88ccff);
+    }
+
+    // 3 dedos
+    else if (indexUp && middleUp && ringUp && !pinkyUp) {
+        createSaturn();
+        particles.material.color.setHex(0xffaa00);
+    }
+
+    // 2 dedos
+    else if (indexUp && middleUp && !ringUp) {
+        createText();
+        particles.material.color.setHex(0xff0077);
     }
 }
 
@@ -240,10 +261,11 @@ function onResults(results) {
 
 function animate() {
     requestAnimationFrame(animate);
-
+    camera.position.z += (15 - camera.position.z) * 0.05;
     // Rotación constante del grupo para que la "imagen 3D" gire sobre su propio eje
     particleGroup.rotation.y += 0.004; // ajuste: velocidad de rotación global
-
+    particles.rotation.x += 0.002;
+    particles.rotation.y += 0.003;
     // Si estamos en saturn rotamos los baseTargets en Y (no modificamos baseTargets original,
     // sino que generamos targets rotados a partir de baseTargets)
     if (currentMode === 'saturn') {
