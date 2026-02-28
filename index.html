@@ -1,150 +1,142 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sofi 3D Heart - Mobile</title>
+    <meta charset="UTF-8">
+    <title>Para Sofi - Partículas Interactivas</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        video { display: none; }
-        #ui-overlay {
-            position: absolute; bottom: 30px; left: 30px; color: #ff69b4;
-            font-size: 22px; font-weight: 300; letter-spacing: 2px;
-            text-shadow: 0 0 10px rgba(255,20,147,0.5); z-index: 100;
-            pointer-events: none;
-        }
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        canvas { display: block; }
+        #video-container { position: fixed; bottom: 10px; right: 10px; width: 150px; border: 2px solid white; border-radius: 10px; overflow: hidden; z-index: 10; }
+        #video-container video { width: 100%; transform: scaleX(-1); }
+        .instrucciones { position: fixed; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; pointer-events: none; }
     </style>
 </head>
 <body>
 
-<div id="ui-overlay">Hola Sofi</div>
-<video id="video" autoplay playsinline muted></video>
+<div class="instrucciones">
+    <p>✌️ 2 dedos: "Te amo Sofi"</p>
+    <p>🖐️ Mano abierta: Corazón 3D</p>
+    <p>👌 Pellizco: Agrandar partículas</p>
+</div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<div id="video-container">
+    <video id="input_video"></video>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-// --- CONFIGURACIÓN PARA MÓVIL ---
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.z = 5;
+const videoElement = document.getElementById('input_video');
+let scene, camera, renderer, particles, heartMesh;
+let mode = 'normal'; // normal, text, heart
 
-const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true }); // Antialias off para fluidez en iPhone
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-document.body.appendChild(renderer.domElement);
+// --- CONFIGURACIÓN THREE.JS ---
+function initThree() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-let particles;
-let targetRotX = 0, targetRotY = 0;
-let targetScale = 1.2, currentScale = 1.2;
-const lerpFactor = 0.04; // Fluidez ajustada para táctil/móvil
-
-// --- CREACIÓN DEL CORAZÓN VOLUMÉTRICO (ESFÉRICO) ---
-function createHeart3D() {
-    const geometry = new THREE.BufferGeometry();
-    const count = 4000; // Balance ideal para iPhone
-    const positions = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-        const t = Math.random() * Math.PI * 2;
-        // El secreto del volumen: r controla el "relleno"
-        const r = Math.pow(Math.random(), 0.5); 
-        
-        let x = 16 * Math.pow(Math.sin(t), 3);
-        let y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-        
-        // Z no es aleatorio, se basa en la forma para dar volumen "esférico"
-        // Cuanto más al centro del corazón, más profundo es (z más grande)
-        let zLimit = Math.sqrt(Math.max(0, 100 - (x*x + y*y) * 0.1)); 
-        let z = (Math.random() - 0.5) * zLimit * 1.5;
-
-        positions[i * 3] = (x / 12) * r;
-        positions[i * 3 + 1] = (y / 12) * r;
-        positions[i * 3 + 2] = (z / 12);
-    }
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    // Crear sistema de partículas básico
+    const geo = new THREE.BufferGeometry();
+    const count = 5000;
+    const pos = new Float32Array(count * 3);
+    for(let i=0; i<count*3; i++) pos[i] = (Math.random() - 0.5) * 10;
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     
-    const material = new THREE.PointsMaterial({
-        color: 0xff1493,
-        size: 0.04,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        opacity: 0.8,
-        depthWrite: false // Crucial para transparencia fluida
-    });
-
-    particles = new THREE.Points(geometry, material);
+    const mat = new THREE.PointsMaterial({ color: 0xff44aa, size: 0.05 });
+    particles = new THREE.Points(geo, mat);
     scene.add(particles);
+
+    // Crear Corazón 3D (oculto al inicio)
+    const x = 0, y = 0;
+    const heartShape = new THREE.Shape();
+    heartShape.moveTo( x + 0.5, y + 0.5 );
+    heartShape.bezierCurveTo( x + 0.5, y + 0.5, x + 0.4, y, x, y );
+    heartShape.bezierCurveTo( x - 0.6, y, x - 0.6, y + 0.7,x - 0.6, y + 0.7 );
+    heartShape.bezierCurveTo( x - 0.6, y + 1.1, x - 0.3, y + 1.54, x + 0.5, y + 1.9 );
+    heartShape.bezierCurveTo( x + 1.2, y + 1.54, x + 1.6, y + 1.1, x + 1.6, y + 0.7 );
+    heartShape.bezierCurveTo( x + 1.6, y + 0.7, x + 1.6, y, x + 1, y );
+    heartShape.bezierCurveTo( x + 0.7, y, x + 0.5, y + 0.5, x + 0.5, y + 0.5 );
+
+    const extrudeSettings = { depth: 0.4, bevelEnabled: true, bevelSegments: 2, steps: 2, bevelSize: 0.1, bevelThickness: 0.1 };
+    const heartGeo = new THREE.ExtrudeGeometry(heartShape, extrudeSettings);
+    const heartMat = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+    heartMesh = new THREE.Mesh(heartGeo, heartMat);
+    heartMesh.scale.set(0.5, 0.5, 0.5);
+    heartMesh.rotation.z = Math.PI;
+    heartMesh.visible = false;
+    scene.add(heartMesh);
+
+    const light = new THREE.PointLight(0xffffff, 1, 100);
+    light.position.set(0, 0, 10);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x404040));
+
+    camera.position.z = 5;
 }
-createHeart3D();
 
-// --- LÓGICA DE MANOS ---
-const videoElement = document.getElementById('video');
-const hands = new Hands({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-});
-
-hands.setOptions({
-    maxNumHands: 1,
-    modelComplexity: 0, // 0 es más rápido para móviles
-    minDetectionConfidence: 0.6,
-    minTrackingConfidence: 0.6
-});
-
-hands.onResults(results => {
+// --- LÓGICA DE GESTOS ---
+function onResults(results) {
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-        const wrist = landmarks[0];
+        const hand = results.multiHandLandmarks[0];
         
-        const isIndexUp = landmarks[8].y < landmarks[6].y;
-        const isMiddleUp = landmarks[12].y < landmarks[10].y;
-        const isRingUp = landmarks[16].y < landmarks[14].y;
-        const isPinkyUp = landmarks[20].y < landmarks[18].y;
+        // Coordenadas de la palma (mapeadas a la pantalla)
+        const palmX = (hand[9].x - 0.5) * 10;
+        const palmY = -(hand[9].y - 0.5) * 10;
 
-        // Escala (Distancia dedos)
-        const dX = landmarks[4].x - landmarks[8].x;
-        const dY = landmarks[4].y - landmarks[8].y;
-        const dist = Math.sqrt(dX*dX + dY*dY);
-        targetScale = 0.8 + (dist * 5);
+        // 1. Detectar Pellizco (Pinch) para agrandar
+        const thumbTip = hand[4];
+        const indexTip = hand[8];
+        const distPinch = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+        
+        if(distPinch < 0.05) {
+            particles.material.size = 0.2;
+        } else {
+            particles.material.size = 0.05;
+        }
 
-        // Sensibilidad iPhone (Valores más altos compensan el delay de cámara móvil)
-        if (isIndexUp && isMiddleUp && isRingUp && isPinkyUp) {
-            targetRotY = (wrist.x - 0.5) * 12; 
-            targetRotX = (wrist.y - 0.5) * 8;
-        } else if (isIndexUp) {
-            targetRotY = (wrist.x - 0.5) * 5;
-            targetRotX = (wrist.y - 0.5) * 3;
+        // 2. Contar dedos levantados
+        const fingersUp = [8, 12, 16, 20].filter(i => hand[i].y < hand[i-2].y).length;
+
+        if (fingersUp === 2) {
+            // "Te amo Sofi" - Aquí lo simplificamos cambiando color y rotación
+            // En un sistema real usaríamos una textura de texto.
+            particles.material.color.setHex(0x00ff00);
+            console.log("Te amo Sofi");
+        } else if (fingersUp >= 4) {
+            // Corazón 3D
+            heartMesh.visible = true;
+            heartMesh.position.set(palmX, palmY, 0);
+            particles.visible = false;
+        } else {
+            heartMesh.visible = false;
+            particles.visible = true;
+            particles.material.color.setHex(0xff44aa);
         }
     }
-});
+}
 
-const cameraUtils = new Camera(videoElement, {
+// --- INICIALIZACIÓN ---
+initThree();
+
+const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+hands.onResults(onResults);
+
+const cameraControl = new Camera(videoElement, {
     onFrame: async () => { await hands.send({image: videoElement}); },
-    width: 480, height: 640 // Resolución optimizada para iPhone (Portrait)
+    width: 640, height: 480
 });
-cameraUtils.start();
+cameraControl.start();
 
-// --- BUCLE DE ANIMACIÓN ---
 function animate() {
     requestAnimationFrame(animate);
-    
-    if (particles) {
-        // Suavizado (Lerp)
-        currentScale += (targetScale - currentScale) * 0.1;
-        particles.scale.set(currentScale, currentScale, currentScale);
-
-        // Rotación ultra fluida
-        particles.rotation.y += (targetRotY - particles.rotation.y) * lerpFactor;
-        particles.rotation.x += (targetRotX - particles.rotation.x) * lerpFactor;
-        
-        // Giro constante de cortesía
-        particles.rotation.y += 0.005;
-        
-        // Pulso suave
-        const s = 1 + Math.sin(Date.now() * 0.002) * 0.03;
-        particles.scale.multiplyScalar(s);
-    }
+    particles.rotation.y += 0.002;
+    if(heartMesh.visible) heartMesh.rotation.y += 0.05;
     renderer.render(scene, camera);
 }
 animate();
@@ -157,4 +149,3 @@ window.addEventListener('resize', () => {
 </script>
 </body>
 </html>
-
