@@ -5,22 +5,25 @@
 <title>Universo Interactivo</title>
 <style>
 body{margin:0;overflow:hidden;background:black;font-family:sans-serif;}
-#video-container{position:fixed;bottom:10px;left:10px;width:130px;
-border:2px solid #ff0077;border-radius:10px;overflow:hidden;
-transform:scaleX(-1);}
+#video-container{
+position:fixed;bottom:10px;left:10px;width:130px;
+border:2px solid #ff0077;border-radius:10px;
+overflow:hidden;transform:scaleX(-1);}
 #video-container video{width:100%;}
-.hud{position:fixed;top:20px;left:20px;color:white;
-background:rgba(255,0,119,.15);padding:15px;border-radius:10px;}
+.hud{
+position:fixed;top:20px;left:20px;color:white;
+background:rgba(255,0,119,.15);
+padding:15px;border-radius:10px;}
 </style>
 </head>
 <body>
 
 <div class="hud">
 <h3>Comandos</h3>
-<p>• 2 Dedos</p>
-<p>• 3 Dedos</p>
-<p>• Mano Abierta</p>
-<p>• Puño Cerrado</p>
+<p>• 2 Dedos → Texto</p>
+<p>• 3 Dedos → Saturno</p>
+<p>• Mano Abierta → Espacio</p>
+<p>• Puño Cerrado → Corazón</p>
 </div>
 
 <div id="video-container">
@@ -38,10 +41,11 @@ let scene,camera,renderer,particles;
 let positions,targets;
 let currentMode="";
 let rotationSpeed=0;
-let lerpSpeed=0.06;
+let lerpSpeed=0.07;
 
 function init(){
 scene=new THREE.Scene();
+
 camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,1000);
 camera.position.z=18;
 
@@ -73,20 +77,15 @@ particles=new THREE.Points(geo,mat);
 scene.add(particles);
 }
 
-function resetScene(){
-particles.rotation.set(0,0,0);
-rotationSpeed=0;
-camera.position.z=18;
-}
-
 function setMode(mode){
 if(currentMode!==mode){
 currentMode=mode;
-resetScene();
+particles.rotation.set(0,0,0);
+camera.position.z=18;
 }
 }
 
-/* ===== TEXTO (NO TOCADO) ===== */
+/* ===== TEXTO ===== */
 function createText(){
 setMode("text");
 rotationSpeed=.003;
@@ -121,7 +120,7 @@ targets[i3+2]=(Math.random()-.5)*2;
 function createSaturn(){
 setMode("saturn");
 rotationSpeed=.002;
-lerpSpeed=0.05;
+lerpSpeed=0.06;
 particles.material.color.setHex(0xffaa00);
 
 for(let i=0;i<COUNT;i++){
@@ -157,7 +156,7 @@ targets[i3+2]=Math.cos(tilt)*z;
 function createHeart(){
 setMode("heart");
 rotationSpeed=.0015;
-lerpSpeed=0.05;
+lerpSpeed=0.06;
 particles.material.color.setHex(0xff0033);
 
 for(let i=0;i<COUNT;i++){
@@ -175,59 +174,45 @@ targets[i3+2]=(Math.random()-.5)*2;
 }
 }
 
-/* ===== MANO ABIERTA ESPACIAL ===== */
-function createOpenField(){
-setMode("open");
+/* ===== ESPACIO (MANO ABIERTA) ===== */
+function createSpace(){
+setMode("space");
 rotationSpeed=.0005;
-lerpSpeed=0.02; // MÁS LENTO
+lerpSpeed=0.03;
 particles.material.color.setHex(0x66ccff);
-
-camera.position.z=12; // ACERCAMIENTO
+camera.position.z=14;
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
-
-const angle=Math.random()*Math.PI*2;
-const radius=10+Math.random()*20;
-
-targets[i3]=Math.cos(angle)*radius;
-targets[i3+1]=Math.sin(angle)*radius;
-targets[i3+2]=(Math.random()-0.5)*50; // PROFUNDIDAD REAL
+targets[i3]=(Math.random()-.5)*60;
+targets[i3+1]=(Math.random()-.5)*60;
+targets[i3+2]=(Math.random()-.5)*80;
 }
 }
 
-/* ===== DETECCIÓN CORREGIDA ===== */
-function isFingerUp(tip, mcp){
-return tip.y < mcp.y;
+/* ===== DETECCIÓN ESTABLE ===== */
+function isFingerUp(tip,pip){
+return tip.y < pip.y;
 }
 
 function onResults(results){
 
-if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
+if(!results.multiHandLandmarks||!results.multiHandLandmarks.length)
 return;
-}
 
 const h=results.multiHandLandmarks[0];
 
-const indexUp=isFingerUp(h[8],h[5]);
-const middleUp=isFingerUp(h[12],h[9]);
-const ringUp=isFingerUp(h[16],h[13]);
-const pinkyUp=isFingerUp(h[20],h[17]);
+const indexUp=isFingerUp(h[8],h[6]);
+const middleUp=isFingerUp(h[12],h[10]);
+const ringUp=isFingerUp(h[16],h[14]);
+const pinkyUp=isFingerUp(h[20],h[18]);
 
 const count=[indexUp,middleUp,ringUp,pinkyUp].filter(Boolean).length;
 
-if(count===0){
-createHeart();
-}
-else if(count===3){
-createSaturn();
-}
-else if(count===2 && indexUp && middleUp){
-createText();
-}
-else if(count===4){
-createOpenField();
-}
+if(count===0) createHeart();
+else if(count===3) createSaturn();
+else if(count===2 && indexUp && middleUp) createText();
+else if(count===4) createSpace();
 }
 
 /* ===== ANIMACIÓN ===== */
@@ -268,6 +253,7 @@ camera.aspect=innerWidth/innerHeight;
 camera.updateProjectionMatrix();
 renderer.setSize(innerWidth,innerHeight);
 });
+
 </script>
 </body>
 </html>
