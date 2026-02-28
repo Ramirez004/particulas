@@ -38,6 +38,7 @@ let scene,camera,renderer,particles;
 let positions,targets;
 let currentMode="";
 let rotationSpeed=0;
+let transitionLerp=.04;
 
 function init(){
 scene=new THREE.Scene();
@@ -79,24 +80,28 @@ camera.position.z=18;
 }
 
 function setMode(mode){
-if(currentMode!==mode){
+if(currentMode===mode) return false;
 currentMode=mode;
 resetScene();
-}
+return true;
 }
 
 function createIdle(){
-setMode("idle");
+const changed=setMode("idle");
 rotationSpeed=.001;
+transitionLerp=.03;
 particles.material.color.setHex(0xff0077);
+if(!changed) return;
 for(let i=0;i<COUNT*3;i++)
 targets[i]=(Math.random()-.5)*40;
 }
 
 function createText(){
-setMode("text");
+const changed=setMode("text");
 rotationSpeed=.003;
+transitionLerp=.08;
 particles.material.color.setHex(0xff0077);
+if(!changed) return;
 
 const canvas=document.createElement("canvas");
 const ctx=canvas.getContext("2d");
@@ -123,9 +128,11 @@ targets[i3+2]=(Math.random()-.5)*2;
 }
 
 function createSaturn(){
-setMode("saturn");
+const changed=setMode("saturn");
 rotationSpeed=.004;
+transitionLerp=.035;
 particles.material.color.setHex(0xffaa00);
+if(!changed) return;
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
@@ -149,9 +156,11 @@ targets[i3+2]=radius*Math.sin(a);
 }
 
 function createHeart(){
-setMode("heart");
+const changed=setMode("heart");
 rotationSpeed=.002;
+transitionLerp=.035;
 particles.material.color.setHex(0xff0000);
+if(!changed) return;
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
@@ -165,9 +174,11 @@ targets[i3+2]=0;
 }
 
 function createOpenField(){
-setMode("open");
+const changed=setMode("open");
 rotationSpeed=.001;
+transitionLerp=.03;
 particles.material.color.setHex(0x88ccff);
+if(!changed) return;
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
@@ -218,7 +229,7 @@ requestAnimationFrame(animate);
 
 const pos=particles.geometry.attributes.position.array;
 for(let i=0;i<COUNT*3;i++)
-pos[i]+=(targets[i]-pos[i])*.08;
+pos[i]+=(targets[i]-pos[i])*transitionLerp;
 
 particles.rotation.y+=rotationSpeed;
 particles.geometry.attributes.position.needsUpdate=true;
