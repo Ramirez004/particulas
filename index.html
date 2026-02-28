@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <title>Universo Interactivo</title>
 <style>
-body { margin:0; overflow:hidden; background:black; font-family:sans-serif;}
-#video-container { position:fixed; bottom:10px; left:10px; width:130px;
-border:2px solid #ff0077; border-radius:10px; overflow:hidden;
+body{margin:0;overflow:hidden;background:#000;font-family:sans-serif;}
+#video-container{position:fixed;bottom:10px;left:10px;width:130px;
+border:2px solid #ff0077;border-radius:10px;overflow:hidden;
 transform:scaleX(-1);}
 #video-container video{width:100%;}
-.hud{position:fixed; top:20px; left:20px; color:white;
-background:rgba(255,0,119,.15); padding:15px; border-radius:10px;}
+.hud{position:fixed;top:20px;left:20px;color:white;
+background:rgba(255,0,119,.15);padding:15px;border-radius:10px;}
 </style>
 </head>
 <body>
@@ -34,34 +34,34 @@ background:rgba(255,0,119,.15); padding:15px; border-radius:10px;}
 
 <script>
 
-const COUNT = 9000;
-let scene, camera, renderer, particles;
-let positions, targets;
-let currentMode = "";
-let rotationSpeed = 0;
+const COUNT=10000;
+let scene,camera,renderer,particles;
+let positions,targets;
+let currentMode="";
+let rotationSpeed=0;
 
 function init(){
-scene = new THREE.Scene();
-camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,1000);
-camera.position.z = 18;
+scene=new THREE.Scene();
+camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,1000);
+camera.position.z=18;
 
-renderer = new THREE.WebGLRenderer({antialias:true});
+renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
-const geo = new THREE.BufferGeometry();
-positions = new Float32Array(COUNT*3);
-targets   = new Float32Array(COUNT*3);
+const geo=new THREE.BufferGeometry();
+positions=new Float32Array(COUNT*3);
+targets=new Float32Array(COUNT*3);
 
 for(let i=0;i<COUNT*3;i++){
-positions[i]=(Math.random()-.5)*30;
+positions[i]=(Math.random()-.5)*40;
 targets[i]=positions[i];
 }
 
 geo.setAttribute("position",new THREE.BufferAttribute(positions,3));
 
-const mat = new THREE.PointsMaterial({
-size:.06,
+const mat=new THREE.PointsMaterial({
+size:.05,
 color:0xff0077,
 transparent:true,
 opacity:.9,
@@ -69,14 +69,14 @@ blending:THREE.AdditiveBlending,
 depthWrite:false
 });
 
-particles = new THREE.Points(geo,mat);
+particles=new THREE.Points(geo,mat);
 scene.add(particles);
 }
 
 function resetScene(){
-camera.position.z=18;
 particles.rotation.set(0,0,0);
 rotationSpeed=0;
+camera.position.z=18;
 }
 
 function setMode(mode){
@@ -86,32 +86,40 @@ resetScene();
 }
 }
 
+function createIdle(){
+setMode("idle");
+rotationSpeed=.001;
+particles.material.color.setHex(0xff0077);
+for(let i=0;i<COUNT*3;i++)
+targets[i]=(Math.random()-.5)*40;
+}
+
 function createText(){
 setMode("text");
-rotationSpeed=.002;
+rotationSpeed=.003;
 particles.material.color.setHex(0xff0077);
 
 const canvas=document.createElement("canvas");
 const ctx=canvas.getContext("2d");
-canvas.width=900; canvas.height=200;
+canvas.width=900;canvas.height=200;
 ctx.fillStyle="white";
 ctx.font="bold 80px Arial";
 ctx.textAlign="center";
-ctx.fillText("TE AMO SOFIA",450,120);
+ctx.fillText("TE AMO SOFI",450,120);
 
 const data=ctx.getImageData(0,0,900,200).data;
 const pts=[];
 for(let y=0;y<200;y+=4){
 for(let x=0;x<900;x+=4){
 if(data[(y*900+x)*4+3]>128)
-pts.push({x:(x-450)/22,y:-(y-100)/22});
+pts.push({x:(x-450)/20,y:-(y-100)/20});
 }}
 for(let i=0;i<COUNT;i++){
 const p=pts[i%pts.length];
 const i3=i*3;
 targets[i3]=p.x;
 targets[i3+1]=p.y;
-targets[i3+2]=0;
+targets[i3+2]=(Math.random()-.5)*2; // profundidad real 3D
 }
 }
 
@@ -136,7 +144,7 @@ const radius=6+Math.random()*2;
 const a=Math.random()*Math.PI*2;
 targets[i3]=radius*Math.cos(a);
 targets[i3+1]=(Math.random()-.5)*.5;
-targets[i3+2]=radius*Math.sin(a)*.4;
+targets[i3+2]=radius*Math.sin(a);
 }
 }
 }
@@ -158,44 +166,32 @@ targets[i3+2]=0;
 }
 }
 
-function createOpenField(hX,hY){
-setMode("open");
-rotationSpeed=.001;
-particles.material.color.setHex(0x88ccff);
-
-for(let i=0;i<COUNT;i++){
-const i3=i*3;
-targets[i3]=(Math.random()-.5)*30+hX*.5;
-targets[i3+1]=(Math.random()-.5)*15+hY*.5;
-targets[i3+2]=(Math.random()-.5)*20;
-}
-}
-
 function createPinch(hX,hY){
 setMode("pinch");
-rotationSpeed=.003;
+rotationSpeed=.005;
 particles.material.color.setHex(0x00ffff);
-
 camera.position.z=10;
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
-const r=Math.random()*3;
+const r=Math.random()*4;
 const a=Math.random()*Math.PI*2;
 targets[i3]=hX+Math.cos(a)*r;
 targets[i3+1]=hY+Math.sin(a)*r;
-targets[i3+2]=(Math.random()-.5)*3-5;
+targets[i3+2]=(Math.random()-.5)*8-6; // dispersión real
 }
 }
 
 function onResults(results){
-if(!results.multiHandLandmarks||!results.multiHandLandmarks.length)return;
-const h=results.multiHandLandmarks[0];
+if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
+createIdle();
+return;
+}
 
+const h=results.multiHandLandmarks[0];
 const hX=-(h[9].x-.5)*25;
 const hY=-(h[9].y-.5)*18;
 
-const up=f=>f.y<f.pip;
 const indexUp=h[8].y<h[6].y;
 const middleUp=h[12].y<h[10].y;
 const ringUp=h[16].y<h[14].y;
@@ -203,7 +199,9 @@ const pinkyUp=h[20].y<h[18].y;
 
 const distPinch=Math.hypot(h[4].x-h[8].x,h[4].y-h[8].y);
 
-if(distPinch<.045){
+// ORDEN IMPORTANTE
+
+if(distPinch<.04){
 createPinch(hX,hY);
 }
 else if(!indexUp&&!middleUp&&!ringUp&&!pinkyUp){
@@ -216,7 +214,7 @@ else if(indexUp&&middleUp&&!ringUp){
 createText();
 }
 else if(indexUp&&middleUp&&ringUp&&pinkyUp){
-createOpenField(hX,hY);
+createIdle(); // mano abierta vuelve a modo base
 }
 }
 
@@ -247,7 +245,7 @@ width:640,height:480
 }).start();
 
 init();
-createText();
+createIdle();
 animate();
 
 window.addEventListener("resize",()=>{
