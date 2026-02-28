@@ -2,20 +2,22 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Universo para Sofi</title>
+    <title>Para Sofi - Partículas Estables</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
-        #video-container { position: fixed; bottom: 15px; right: 15px; width: 140px; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; overflow: hidden; z-index: 5; opacity: 0.7; }
-        #video-container video { width: 100%; transform: scaleX(-1); }
-        .hud { position: fixed; top: 20px; left: 20px; color: #ff0077; pointer-events: none; z-index: 10; text-shadow: 0 0 10px rgba(255,0,119,0.5); }
-        canvas { display: block; }
+        #video-container { position: fixed; bottom: 10px; left: 10px; width: 150px; border-radius: 10px; border: 2px solid #ff0077; overflow: hidden; z-index: 100; transform: scaleX(-1); }
+        #video-container video { width: 100%; display: block; }
+        .instrucciones { position: fixed; top: 20px; right: 20px; color: #ff0077; text-align: right; pointer-events: none; z-index: 10; text-shadow: 0 0 5px #000; }
     </style>
 </head>
 <body>
 
-<div class="hud">
-    <h2 id="status">Esperando cámara...</h2>
-    <p>✌️ 2 Dedos: "TE AMO SOFI"<br>🤟 3 Dedos: Saturno<br>🖐️ Mano abierta: Corazón 3D<br>👌 Pellizco: Atraer y Esparcir</p>
+<div class="instrucciones">
+    <h2>✨ Gestos Mágicos</h2>
+    <p>✌️ 2 Dedos: <b>"TE AMO SOFI"</b></p>
+    <p>🤟 3 Dedos: <b>Saturno</b></p>
+    <p>🖐️ Mano Abierta: <b>Corazón</b></p>
+    <p>👌 Pellizco: <b>Atracción</b></p>
 </div>
 
 <div id="video-container"><video id="input_video"></video></div>
@@ -25,51 +27,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-let scene, camera, renderer, particles, heartMesh;
-let positions, targets, colors;
-const COUNT = 10000; // Más partículas para que el texto se lea bien
-const videoElement = document.getElementById('input_video');
-const statusText = document.getElementById('status');
-
-// --- GENERADOR DE FORMAS ---
-function getShapePoints(type, handPos = {x:0, y:0}) {
-    const pts = [];
-    if (type === 'TEXT') {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 400; canvas.height = 100;
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 50px Arial';
-        ctx.fillText('TE AMO SOFI', 10, 60);
-        const imgData = ctx.getImageData(0,0,400,100).data;
-        for(let i=0; i<COUNT; i++) {
-            let x, y;
-            do {
-                x = Math.floor(Math.random()*400);
-                y = Math.floor(Math.random()*100);
-            } while(imgData[(y*400 + x)*4 + 3] < 128);
-            pts.push((x-200)/20, -(y-50)/20, 0);
-        }
-    } else if (type === 'SATURN') {
-        for(let i=0; i<COUNT; i++) {
-            if (i < COUNT * 0.5) { // Planeta
-                const u = Math.random(), v = Math.random();
-                const theta = 2 * Math.PI * u, phi = Math.acos(2 * v - 1);
-                pts.push(2*Math.sin(phi)*Math.cos(theta), 2*Math.sin(phi)*Math.sin(theta), 2*Math.cos(phi));
-            } else { // Anillos
-                const r = 3 + Math.random() * 1.5, a = Math.random() * Math.PI * 2;
-                pts.push(r*Math.cos(a), (Math.random()-0.5)*0.1, r*Math.sin(a));
-            }
-        }
-    } else if (type === 'PINCH') {
-        for(let i=0; i<COUNT; i++) {
-            pts.push(handPos.x + (Math.random()-0.5)*3, handPos.y + (Math.random()-0.5)*3, (Math.random()-0.5)*3);
-        }
-    } else { // Random / Home
-        for(let i=0; i<COUNT; i++) pts.push((Math.random()-0.5)*15, (Math.random()-0.5)*15, (Math.random()-0.5)*15);
-    }
-    return pts;
-}
+let scene, camera, renderer, particles;
+const COUNT = 12000; // Más partículas para mejor definición
+let positions, targets, currentMode = 'IDLE';
 
 function init() {
     scene = new THREE.Scene();
@@ -81,79 +41,145 @@ function init() {
     const geo = new THREE.BufferGeometry();
     positions = new Float32Array(COUNT * 3);
     targets = new Float32Array(COUNT * 3);
-    const initial = getShapePoints('RANDOM');
-    for(let i=0; i<COUNT*3; i++) { positions[i] = initial[i]; targets[i] = initial[i]; }
+
+    // Inicializar en nube aleatoria
+    for(let i=0; i<COUNT*3; i++) {
+        positions[i] = (Math.random() - 0.5) * 20;
+        targets[i] = positions[i];
+    }
 
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({ size: 0.03, vertexColors: false, color: 0xff0077, transparent: true, opacity: 0.6 });
+    const mat = new THREE.PointsMaterial({ size: 0.04, color: 0xff0077, transparent: true, opacity: 0.8 });
     particles = new THREE.Points(geo, mat);
     scene.add(particles);
 
-    // Corazón oculto
-    const hShape = new THREE.Shape();
-    hShape.moveTo(0,0); hShape.bezierCurveTo(0,0.5, 1,1.5, 0,2); hShape.bezierCurveTo(-1,1.5, 0,0.5, 0,0);
-    heartMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(hShape,{depth:0.4, bevelEnabled:true}), new THREE.MeshPhongMaterial({color: 0xff0000}));
-    heartMesh.visible = false; heartMesh.rotation.x = Math.PI;
-    scene.add(heartMesh);
-    
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-    camera.position.z = 10;
+    camera.position.z = 12;
 }
 
-function updateTargets(newPts) {
-    for(let i=0; i<COUNT*3; i++) targets[i] = newPts[i];
+// --- GENERADORES DE FORMAS MATEMÁTICAS ---
+
+function createHeart(handX, handY) {
+    for (let i = 0; i < COUNT; i++) {
+        const i3 = i * 3;
+        const t = Math.random() * Math.PI * 2;
+        // Ecuación paramétrica del corazón
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+        targets[i3] = (x / 4) + handX;
+        targets[i3+1] = (y / 4) + handY;
+        targets[i3+2] = (Math.random() - 0.5) * 2;
+    }
+}
+
+function createText() {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 600; canvas.height = 200;
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 60px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('TE AMO SOFI', 300, 100);
+    
+    const data = ctx.getImageData(0,0,600,200).data;
+    const points = [];
+    for(let y=0; y<200; y+=2) {
+        for(let x=0; x<600; x+=2) {
+            if(data[(y*600 + x)*4 + 3] > 128) {
+                points.push({x: (x-300)/20, y: -(y-100)/20});
+            }
+        }
+    }
+    for(let i=0; i<COUNT; i++) {
+        const i3 = i * 3;
+        const p = points[i % points.length];
+        targets[i3] = p.x;
+        targets[i3+1] = p.y;
+        targets[i3+2] = (Math.random() - 0.5);
+    }
+}
+
+function createSaturn() {
+    for(let i=0; i<COUNT; i++) {
+        const i3 = i * 3;
+        if (i < COUNT * 0.4) { // Esfera central
+            const u = Math.random(), v = Math.random();
+            const theta = 2 * Math.PI * u, phi = Math.acos(2 * v - 1);
+            targets[i3] = 2.5 * Math.sin(phi) * Math.cos(theta);
+            targets[i3+1] = 2.5 * Math.sin(phi) * Math.sin(theta);
+            targets[i3+2] = 2.5 * Math.cos(phi);
+        } else { // Anillos
+            const r = 4 + Math.random() * 2, a = Math.random() * Math.PI * 2;
+            targets[i3] = r * Math.cos(a);
+            targets[i3+1] = r * Math.sin(a) * 0.3; // Inclinación
+            targets[i3+2] = r * Math.sin(a) * 0.5;
+        }
+    }
+}
+
+function createPinch(handX, handY) {
+    for(let i=0; i<COUNT; i++) {
+        const i3 = i * 3;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * 2;
+        targets[i3] = handX + Math.cos(angle) * dist;
+        targets[i3+1] = handY + Math.sin(angle) * dist;
+        targets[i3+2] = (Math.random() - 0.5) * 5;
+    }
 }
 
 function onResults(results) {
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-        statusText.innerText = "¡Muestra tu mano!";
-        heartMesh.visible = false;
-        particles.visible = true;
-        updateTargets(getShapePoints('RANDOM'));
+        // Volver a estado aleatorio si no hay mano
+        for(let i=0; i<COUNT*3; i+=3) {
+            targets[i] = (Math.random() - 0.5) * 25;
+            targets[i+1] = (Math.random() - 0.5) * 20;
+        }
         return;
     }
-    
-    statusText.innerText = "✨ Magia activa";
+
     const hand = results.multiHandLandmarks[0];
+    const handX = -(hand[9].x - 0.5) * 25; // Invertido para que coincida con espejo
+    const handY = -(hand[9].y - 0.5) * 18;
+
     const fingersUp = [8, 12, 16, 20].filter(i => hand[i].y < hand[i-2].y).length;
     const distPinch = Math.hypot(hand[4].x - hand[8].x, hand[4].y - hand[8].y);
-    const handX = (hand[9].x - 0.5) * 20, handY = -(hand[9].y - 0.5) * 15;
 
     if (distPinch < 0.04) {
-        updateTargets(getShapePoints('PINCH', {x: handX, y: handY}));
+        createPinch(handX, handY);
         particles.material.color.setHex(0x00ffff);
     } else if (fingersUp === 2) {
-        updateTargets(getShapePoints('TEXT'));
+        createText();
         particles.material.color.setHex(0xff0077);
     } else if (fingersUp === 3) {
-        updateTargets(getShapePoints('SATURN'));
+        createSaturn();
         particles.material.color.setHex(0xffaa00);
     } else if (fingersUp >= 4) {
-        heartMesh.visible = true;
-        heartMesh.position.set(handX, handY, 0);
-        particles.visible = false;
-    } else {
-        heartMesh.visible = false;
-        particles.visible = true;
-        updateTargets(getShapePoints('RANDOM'));
+        createHeart(handX, handY);
+        particles.material.color.setHex(0xff0000);
     }
 }
 
+// --- CONFIGURACIÓN DE CÁMARA ---
+const videoElement = document.getElementById('input_video');
 const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5 });
+hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
 hands.onResults(onResults);
-new Camera(videoElement, { onFrame: async () => { await hands.send({image: videoElement}); }, width: 640, height: 480 }).start();
+
+new Camera(videoElement, {
+    onFrame: async () => { await hands.send({image: videoElement}); },
+    width: 640, height: 480
+}).start();
 
 init();
+
 function animate() {
     requestAnimationFrame(animate);
     const pos = particles.geometry.attributes.position.array;
-    for(let i=0; i<COUNT*3; i++) {
-        pos[i] += (targets[i] - pos[i]) * 0.1; // Suavizado
+    for (let i = 0; i < COUNT * 3; i++) {
+        // El factor 0.05 hace que el movimiento sea MUCHO más suave y lento
+        pos[i] += (targets[i] - pos[i]) * 0.05;
     }
     particles.geometry.attributes.position.needsUpdate = true;
-    particles.rotation.y += 0.001;
-    if(heartMesh.visible) heartMesh.rotation.y += 0.05;
     renderer.render(scene, camera);
 }
 animate();
