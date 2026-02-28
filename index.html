@@ -87,12 +87,13 @@ resetScene();
 
 function createIdle(){
 setMode("idle");
-rotationSpeed=.001;
+rotationSpeed=.0008;
 particles.material.color.setHex(0xff0077);
 for(let i=0;i<COUNT*3;i++)
-targets[i]=(Math.random()-.5)*40;
+targets[i]=(Math.random()-.5)*35;
 }
 
+/* ========= TEXTO (NO TOCADO) ========= */
 function createText(){
 setMode("text");
 rotationSpeed=.003;
@@ -122,19 +123,17 @@ targets[i3+2]=(Math.random()-.5)*2;
 }
 }
 
-/* ================= SATURNO MEJORADO ================= */
-
+/* ========= SATURNO LIMPIO ========= */
 function createSaturn(){
 setMode("saturn");
-rotationSpeed=.003;
+rotationSpeed=.002;
 particles.material.color.setHex(0xffaa00);
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
 
-if(i<COUNT*.55){
-
-// ESFERA PERFECTA
+if(i<COUNT*.6){
+// esfera uniforme
 const u=Math.random();
 const v=Math.random();
 const theta=2*Math.PI*u;
@@ -146,29 +145,25 @@ targets[i3+1]=r*Math.sin(phi)*Math.sin(theta);
 targets[i3+2]=r*Math.cos(phi);
 
 }else{
-
-// ANILLO INCLINADO REAL
+// anillo estable inclinado
 const angle=Math.random()*Math.PI*2;
-const radius=6+Math.random()*1.5;
+const radius=6.5+Math.random()*1;
+const tilt=0.5;
 
 const x=Math.cos(angle)*radius;
 const z=Math.sin(angle)*radius;
-const y=(Math.random()-.5)*.4;
-
-const tilt=.6;
 
 targets[i3]=x;
-targets[i3+1]=y*Math.cos(tilt)-z*Math.sin(tilt);
-targets[i3+2]=y*Math.sin(tilt)+z*Math.cos(tilt);
+targets[i3+1]=Math.sin(tilt)*z;
+targets[i3+2]=Math.cos(tilt)*z;
 }
 }
 }
 
-/* ================= CORAZÓN 3D MEJORADO ================= */
-
+/* ========= CORAZÓN 3D LIMPIO ========= */
 function createHeart(){
 setMode("heart");
-rotationSpeed=.002;
+rotationSpeed=.0015;
 particles.material.color.setHex(0xff0033);
 
 for(let i=0;i<COUNT;i++){
@@ -182,31 +177,34 @@ const y=13*Math.cos(t)
 -2*Math.cos(3*t)
 -Math.cos(4*t);
 
-const depth=(Math.random()-.5)*3;
+const depth=(Math.random()-.5)*2;
 
-targets[i3]=x*.45;
-targets[i3+1]=y*.45;
+targets[i3]=x*.4;
+targets[i3+1]=y*.4;
 targets[i3+2]=depth;
 }
 }
 
+/* ========= MANO ABIERTA GALAXIA SUAVE ========= */
 function createOpenField(){
 setMode("open");
-rotationSpeed=.001;
-particles.material.color.setHex(0x88ccff);
+rotationSpeed=.0007;
+particles.material.color.setHex(0x66ccff);
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
+
 const angle=Math.random()*Math.PI*2;
-const radius=5+Math.random()*10;
+const spiral=0.5*i/COUNT*15;
+const radius=3+spiral;
+
 targets[i3]=Math.cos(angle)*radius;
-targets[i3+1]=(Math.random()-.5)*6;
+targets[i3+1]=(Math.random()-.5)*4;
 targets[i3+2]=Math.sin(angle)*radius;
 }
 }
 
-/* ================= DETECCIÓN ================= */
-
+/* ========= DETECCIÓN ========= */
 function onResults(results){
 
 if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
@@ -237,14 +235,13 @@ createOpenField();
 }
 }
 
-/* ================= ANIMACIÓN ================= */
-
+/* ========= ANIMACIÓN SUAVE ========= */
 function animate(){
 requestAnimationFrame(animate);
 
 const pos=particles.geometry.attributes.position.array;
 for(let i=0;i<COUNT*3;i++)
-pos[i]+=(targets[i]-pos[i])*.08;
+pos[i]+=(targets[i]-pos[i])*.06; // más suave
 
 particles.rotation.y+=rotationSpeed;
 particles.geometry.attributes.position.needsUpdate=true;
@@ -252,8 +249,7 @@ particles.geometry.attributes.position.needsUpdate=true;
 renderer.render(scene,camera);
 }
 
-/* ================= MEDIAPIPE ================= */
-
+/* ========= MEDIAPIPE ========= */
 const video=document.getElementById("input_video");
 const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
 hands.setOptions({
