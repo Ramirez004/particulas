@@ -38,6 +38,7 @@ let scene,camera,renderer,particles;
 let positions,targets;
 let currentMode="";
 let rotationSpeed=0;
+let lerpSpeed=0.06;
 
 function init(){
 scene=new THREE.Scene();
@@ -85,18 +86,11 @@ resetScene();
 }
 }
 
-function createIdle(){
-setMode("idle");
-rotationSpeed=.0008;
-particles.material.color.setHex(0xff0077);
-for(let i=0;i<COUNT*3;i++)
-targets[i]=(Math.random()-.5)*35;
-}
-
-/* ========= TEXTO (NO TOCADO) ========= */
+/* ===== TEXTO (NO TOCADO) ===== */
 function createText(){
 setMode("text");
 rotationSpeed=.003;
+lerpSpeed=0.08;
 particles.material.color.setHex(0xff0077);
 
 const canvas=document.createElement("canvas");
@@ -123,17 +117,17 @@ targets[i3+2]=(Math.random()-.5)*2;
 }
 }
 
-/* ========= SATURNO LIMPIO ========= */
+/* ===== SATURNO ===== */
 function createSaturn(){
 setMode("saturn");
 rotationSpeed=.002;
+lerpSpeed=0.05;
 particles.material.color.setHex(0xffaa00);
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
 
 if(i<COUNT*.6){
-// esfera uniforme
 const u=Math.random();
 const v=Math.random();
 const theta=2*Math.PI*u;
@@ -145,7 +139,6 @@ targets[i3+1]=r*Math.sin(phi)*Math.sin(theta);
 targets[i3+2]=r*Math.cos(phi);
 
 }else{
-// anillo estable inclinado
 const angle=Math.random()*Math.PI*2;
 const radius=6.5+Math.random()*1;
 const tilt=0.5;
@@ -160,64 +153,66 @@ targets[i3+2]=Math.cos(tilt)*z;
 }
 }
 
-/* ========= CORAZÓN 3D LIMPIO ========= */
+/* ===== CORAZÓN ===== */
 function createHeart(){
 setMode("heart");
 rotationSpeed=.0015;
+lerpSpeed=0.05;
 particles.material.color.setHex(0xff0033);
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
-
 const t=Math.random()*Math.PI*2;
-
 const x=16*Math.pow(Math.sin(t),3);
 const y=13*Math.cos(t)
 -5*Math.cos(2*t)
 -2*Math.cos(3*t)
 -Math.cos(4*t);
 
-const depth=(Math.random()-.5)*2;
-
 targets[i3]=x*.4;
 targets[i3+1]=y*.4;
-targets[i3+2]=depth;
+targets[i3+2]=(Math.random()-.5)*2;
 }
 }
 
-/* ========= MANO ABIERTA GALAXIA SUAVE ========= */
+/* ===== MANO ABIERTA ESPACIAL ===== */
 function createOpenField(){
 setMode("open");
-rotationSpeed=.0007;
+rotationSpeed=.0005;
+lerpSpeed=0.02; // MÁS LENTO
 particles.material.color.setHex(0x66ccff);
+
+camera.position.z=12; // ACERCAMIENTO
 
 for(let i=0;i<COUNT;i++){
 const i3=i*3;
 
 const angle=Math.random()*Math.PI*2;
-const spiral=0.5*i/COUNT*15;
-const radius=3+spiral;
+const radius=10+Math.random()*20;
 
 targets[i3]=Math.cos(angle)*radius;
-targets[i3+1]=(Math.random()-.5)*4;
-targets[i3+2]=Math.sin(angle)*radius;
+targets[i3+1]=Math.sin(angle)*radius;
+targets[i3+2]=(Math.random()-0.5)*50; // PROFUNDIDAD REAL
 }
 }
 
-/* ========= DETECCIÓN ========= */
+/* ===== DETECCIÓN CORREGIDA ===== */
+function isFingerUp(tip, mcp){
+return tip.y < mcp.y;
+}
+
 function onResults(results){
 
 if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
-createIdle();
 return;
 }
 
 const h=results.multiHandLandmarks[0];
 
-const indexUp=h[8].y<h[6].y;
-const middleUp=h[12].y<h[10].y;
-const ringUp=h[16].y<h[14].y;
-const pinkyUp=h[20].y<h[18].y;
+const indexUp=isFingerUp(h[8],h[5]);
+const middleUp=isFingerUp(h[12],h[9]);
+const ringUp=isFingerUp(h[16],h[13]);
+const pinkyUp=isFingerUp(h[20],h[17]);
 
 const count=[indexUp,middleUp,ringUp,pinkyUp].filter(Boolean).length;
 
@@ -235,13 +230,13 @@ createOpenField();
 }
 }
 
-/* ========= ANIMACIÓN SUAVE ========= */
+/* ===== ANIMACIÓN ===== */
 function animate(){
 requestAnimationFrame(animate);
 
 const pos=particles.geometry.attributes.position.array;
 for(let i=0;i<COUNT*3;i++)
-pos[i]+=(targets[i]-pos[i])*.06; // más suave
+pos[i]+=(targets[i]-pos[i])*lerpSpeed;
 
 particles.rotation.y+=rotationSpeed;
 particles.geometry.attributes.position.needsUpdate=true;
@@ -249,7 +244,7 @@ particles.geometry.attributes.position.needsUpdate=true;
 renderer.render(scene,camera);
 }
 
-/* ========= MEDIAPIPE ========= */
+/* ===== MEDIAPIPE ===== */
 const video=document.getElementById("input_video");
 const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
 hands.setOptions({
@@ -266,7 +261,6 @@ width:640,height:480
 }).start();
 
 init();
-createIdle();
 animate();
 
 window.addEventListener("resize",()=>{
@@ -274,7 +268,6 @@ camera.aspect=innerWidth/innerHeight;
 camera.updateProjectionMatrix();
 renderer.setSize(innerWidth,innerHeight);
 });
-
 </script>
 </body>
 </html>
