@@ -2,169 +2,283 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Particles Gestures</title>
+<title>Universo Interactivo</title>
 <style>
-body{
-    margin:0;
-    overflow:hidden;
-    background:black;
-}
-canvas{
-    display:block;
-}
+body{margin:0;overflow:hidden;background:black;font-family:sans-serif;}
+#video-container{position:fixed;bottom:10px;left:10px;width:130px;
+border:2px solid #ff0077;border-radius:10px;overflow:hidden;
+transform:scaleX(-1);}
+#video-container video{width:100%;}
+.hud{position:fixed;top:20px;left:20px;color:white;
+background:rgba(255,0,119,.15);padding:15px;border-radius:10px;}
 </style>
 </head>
 <body>
-<canvas id="canvas"></canvas>
+
+<div class="hud">
+<h3>Comandos</h3>
+<p>• 2 Dedos</p>
+<p>• 3 Dedos</p>
+<p>• Mano Abierta</p>
+<p>• Puño Cerrado</p>
+</div>
+
+<div id="video-container">
+<video id="input_video" autoplay muted playsinline></video>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
 
-let particles = [];
-let mode = "idle";
-let lastMode = "";
+const COUNT=10000;
+let scene,camera,renderer,particles;
+let positions,targets;
+let currentMode="";
+let rotationSpeed=0;
 
-const PARTICLE_COUNT = 900;
-const CENTER = {x: canvas.width/2, y: canvas.height/2};
-const SPEED = 0.2;
-const DAMPING = 0.94;
-const DEPTH = 400;
+function init(){
+scene=new THREE.Scene();
+camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,1000);
+camera.position.z=18;
 
-class Particle{
-    constructor(){
-        this.reset();
-    }
-    reset(){
-        this.x = Math.random()*canvas.width;
-        this.y = Math.random()*canvas.height;
-        this.z = Math.random()*DEPTH;
-        this.vx = 0;
-        this.vy = 0;
-        this.vz = 0;
-    }
-    update(){
-        this.vx *= DAMPING;
-        this.vy *= DAMPING;
-        this.vz *= DAMPING;
+renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
 
-        this.x += this.vx;
-        this.y += this.vy;
-        this.z += this.vz;
+const geo=new THREE.BufferGeometry();
+positions=new Float32Array(COUNT*3);
+targets=new Float32Array(COUNT*3);
 
-        if(this.z < 1) this.z = DEPTH;
-        if(this.z > DEPTH) this.z = 1;
-    }
-    draw(){
-        const scale = DEPTH/(DEPTH+this.z);
-        const x2d = (this.x - CENTER.x)*scale + CENTER.x;
-        const y2d = (this.y - CENTER.y)*scale + CENTER.y;
-        const size = scale*2;
-
-        ctx.fillStyle = "white";
-        ctx.beginPath();
-        ctx.arc(x2d,y2d,size,0,Math.PI*2);
-        ctx.fill();
-    }
+for(let i=0;i<COUNT*3;i++){
+positions[i]=(Math.random()-.5)*40;
+targets[i]=positions[i];
 }
 
-for(let i=0;i<PARTICLE_COUNT;i++){
-    particles.push(new Particle());
+geo.setAttribute("position",new THREE.BufferAttribute(positions,3));
+
+const mat=new THREE.PointsMaterial({
+size:.05,
+color:0xff0077,
+transparent:true,
+opacity:.9,
+blending:THREE.AdditiveBlending,
+depthWrite:false
+});
+
+particles=new THREE.Points(geo,mat);
+scene.add(particles);
 }
 
-function resetParticles(){
-    particles.forEach(p=>p.reset());
+function resetScene(){
+particles.rotation.set(0,0,0);
+rotationSpeed=0;
+camera.position.z=18;
 }
 
-function saturn(){
-    const t = Date.now()*0.001;
-    particles.forEach((p,i)=>{
-        const angle = i*0.05 + t*0.5;
-        const radius = 200;
-        p.x = CENTER.x + Math.cos(angle)*radius;
-        p.y = CENTER.y + Math.sin(angle)*radius*0.4;
-        p.z = Math.sin(angle)*200;
-    });
+function setMode(mode){
+if(currentMode!==mode){
+currentMode=mode;
+resetScene();
+}
 }
 
-function heart(){
-    let i=0;
-    particles.forEach(p=>{
-        const t = i*0.02;
-        const x = 16*Math.pow(Math.sin(t),3);
-        const y = 13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t);
-        p.x = CENTER.x + x*15;
-        p.y = CENTER.y - y*15;
-        p.z = 100;
-        i++;
-    });
+function createIdle(){
+setMode("idle");
+rotationSpeed=.001;
+particles.material.color.setHex(0xff0077);
+for(let i=0;i<COUNT*3;i++)
+targets[i]=(Math.random()-.5)*40;
 }
 
-function victory3D(){
-    particles.forEach(p=>{
-        p.vx += (Math.random()-0.5)*SPEED;
-        p.vy += (Math.random()-0.5)*SPEED;
-        p.vz += (Math.random()-0.5)*SPEED;
-    });
+function createText(){
+setMode("text");
+rotationSpeed=.003;
+particles.material.color.setHex(0xff0077);
+
+const canvas=document.createElement("canvas");
+const ctx=canvas.getContext("2d");
+canvas.width=900;canvas.height=200;
+ctx.fillStyle="white";
+ctx.font="bold 80px Arial";
+ctx.textAlign="center";
+ctx.fillText("TE AMO SOFI",450,120);
+
+const data=ctx.getImageData(0,0,900,200).data;
+const pts=[];
+for(let y=0;y<200;y+=4){
+for(let x=0;x<900;x+=4){
+if(data[(y*900+x)*4+3]>128)
+pts.push({x:(x-450)/20,y:-(y-100)/20});
+}}
+for(let i=0;i<COUNT;i++){
+const p=pts[i%pts.length];
+const i3=i*3;
+targets[i3]=p.x;
+targets[i3+1]=p.y;
+targets[i3+2]=(Math.random()-.5)*2;
+}
 }
 
-function openHand(){
-    particles.forEach(p=>{
-        const dx = p.x - CENTER.x;
-        const dy = p.y - CENTER.y;
-        const dist = Math.sqrt(dx*dx+dy*dy)+0.01;
-        p.vx += dx/dist*0.3;
-        p.vy += dy/dist*0.3;
-    });
+/* ================= SATURNO MEJORADO ================= */
 
-    ctx.fillStyle="white";
-    ctx.font="bold 60px Arial";
-    ctx.textAlign="center";
-    ctx.fillText("TE AMO SOFI",CENTER.x,CENTER.y);
+function createSaturn(){
+setMode("saturn");
+rotationSpeed=.003;
+particles.material.color.setHex(0xffaa00);
+
+for(let i=0;i<COUNT;i++){
+const i3=i*3;
+
+if(i<COUNT*.55){
+
+// ESFERA PERFECTA
+const u=Math.random();
+const v=Math.random();
+const theta=2*Math.PI*u;
+const phi=Math.acos(2*v-1);
+const r=4;
+
+targets[i3]=r*Math.sin(phi)*Math.cos(theta);
+targets[i3+1]=r*Math.sin(phi)*Math.sin(theta);
+targets[i3+2]=r*Math.cos(phi);
+
+}else{
+
+// ANILLO INCLINADO REAL
+const angle=Math.random()*Math.PI*2;
+const radius=6+Math.random()*1.5;
+
+const x=Math.cos(angle)*radius;
+const z=Math.sin(angle)*radius;
+const y=(Math.random()-.5)*.4;
+
+const tilt=.6;
+
+targets[i3]=x;
+targets[i3+1]=y*Math.cos(tilt)-z*Math.sin(tilt);
+targets[i3+2]=y*Math.sin(tilt)+z*Math.cos(tilt);
+}
+}
 }
 
-function idle(){
-    particles.forEach(p=>{
-        p.vz -= 0.3;
-    });
+/* ================= CORAZÓN 3D MEJORADO ================= */
+
+function createHeart(){
+setMode("heart");
+rotationSpeed=.002;
+particles.material.color.setHex(0xff0033);
+
+for(let i=0;i<COUNT;i++){
+const i3=i*3;
+
+const t=Math.random()*Math.PI*2;
+
+const x=16*Math.pow(Math.sin(t),3);
+const y=13*Math.cos(t)
+-5*Math.cos(2*t)
+-2*Math.cos(3*t)
+-Math.cos(4*t);
+
+const depth=(Math.random()-.5)*3;
+
+targets[i3]=x*.45;
+targets[i3+1]=y*.45;
+targets[i3+2]=depth;
 }
+}
+
+function createOpenField(){
+setMode("open");
+rotationSpeed=.001;
+particles.material.color.setHex(0x88ccff);
+
+for(let i=0;i<COUNT;i++){
+const i3=i*3;
+const angle=Math.random()*Math.PI*2;
+const radius=5+Math.random()*10;
+targets[i3]=Math.cos(angle)*radius;
+targets[i3+1]=(Math.random()-.5)*6;
+targets[i3+2]=Math.sin(angle)*radius;
+}
+}
+
+/* ================= DETECCIÓN ================= */
+
+function onResults(results){
+
+if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
+createIdle();
+return;
+}
+
+const h=results.multiHandLandmarks[0];
+
+const indexUp=h[8].y<h[6].y;
+const middleUp=h[12].y<h[10].y;
+const ringUp=h[16].y<h[14].y;
+const pinkyUp=h[20].y<h[18].y;
+
+const count=[indexUp,middleUp,ringUp,pinkyUp].filter(Boolean).length;
+
+if(count===0){
+createHeart();
+}
+else if(count===3){
+createSaturn();
+}
+else if(count===2 && indexUp && middleUp){
+createText();
+}
+else if(count===4){
+createOpenField();
+}
+}
+
+/* ================= ANIMACIÓN ================= */
 
 function animate(){
-    requestAnimationFrame(animate);
-    ctx.fillStyle="rgba(0,0,0,0.3)";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+requestAnimationFrame(animate);
 
-    if(mode!==lastMode){
-        resetParticles();
-        lastMode=mode;
-    }
+const pos=particles.geometry.attributes.position.array;
+for(let i=0;i<COUNT*3;i++)
+pos[i]+=(targets[i]-pos[i])*.08;
 
-    if(mode==="saturn") saturn();
-    if(mode==="heart") heart();
-    if(mode==="victory") victory3D();
-    if(mode==="open") openHand();
-    if(mode==="idle") idle();
+particles.rotation.y+=rotationSpeed;
+particles.geometry.attributes.position.needsUpdate=true;
 
-    particles.forEach(p=>{
-        p.update();
-        p.draw();
-    });
+renderer.render(scene,camera);
 }
 
+/* ================= MEDIAPIPE ================= */
+
+const video=document.getElementById("input_video");
+const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+hands.setOptions({
+maxNumHands:1,
+modelComplexity:1,
+minDetectionConfidence:.75,
+minTrackingConfidence:.75
+});
+hands.onResults(onResults);
+
+new Camera(video,{
+onFrame:async()=>{await hands.send({image:video});},
+width:640,height:480
+}).start();
+
+init();
+createIdle();
 animate();
 
-/* 
-CAMBIA EL MODO MANUALMENTE PARA PROBAR:
+window.addEventListener("resize",()=>{
+camera.aspect=innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+});
 
-mode="saturn";   // tres dedos
-mode="heart";    // puño
-mode="victory";  // dos dedos
-mode="open";     // mano abierta
-mode="idle";     // sin gesto
-
-*/
 </script>
 </body>
 </html>
